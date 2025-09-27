@@ -1,0 +1,14 @@
+// Bananapeel APT Hook Configuration with Service Account
+// Install to: /etc/apt/apt.conf.d/99bananapeel
+// Requires: tripwire service account (run setup-tripwire-service-account.sh first)
+
+// Run tripwire update check after package operations
+// This uses the limited service account for better security
+DPkg::Post-Invoke {
+    "if [ -x /var/lib/tripwire-service/tripwire-auto-update.sh ]; then logger -t apt-bananapeel 'Running tripwire update check'; sudo -u tripwire /var/lib/tripwire-service/tripwire-auto-update.sh 2>&1 | logger -t apt-bananapeel || true; fi";
+};
+
+// For unattended-upgrades - also update tripwire
+Unattended-Upgrade::Post-Invoke {
+    "if [ -x /var/lib/tripwire-service/tripwire-auto-update.sh ]; then sudo -u tripwire /var/lib/tripwire-service/tripwire-auto-update.sh || true; fi";
+};

@@ -1,0 +1,33 @@
+#!/bin/bash
+# Mock logger for functional tests
+
+# Consume arguments and optionally write to outbox for visibility
+TAG=""
+MESSAGE=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -t|--tag)
+      TAG="$2"
+      shift 2
+      ;;
+    *)
+      MESSAGE+="$1 "
+      shift
+      ;;
+  esac
+done
+
+if [[ -n "$TEST_OUTBOX" ]]; then
+  {
+    echo "=== Logger Message ==="
+    echo "Date: $(date)"
+    [[ -n "$TAG" ]] && echo "Tag: $TAG"
+    echo "Msg: ${MESSAGE%% }"
+    echo "=== End Logger ==="
+    echo
+  } >> "$TEST_OUTBOX"
+fi
+
+exit 0
+

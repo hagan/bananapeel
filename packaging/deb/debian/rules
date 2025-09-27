@@ -1,0 +1,24 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+override_dh_auto_install:
+	# Use Makefile for standard installation
+	$(MAKE) install DESTDIR=$(CURDIR)/debian/bananapeel PREFIX=/usr
+
+	# Install main automation script to service directory
+	install -D -m 755 scripts/automation/tripwire-auto-update.sh \
+		debian/bananapeel/var/lib/tripwire-service/tripwire-auto-update.sh
+
+	# Install config templates
+	install -D -m 644 config/99bananapeel \
+		debian/bananapeel/etc/bananapeel/99bananapeel.template
+
+override_dh_installsystemd:
+	dh_installsystemd --no-enable --no-start bananapeel-update.timer
+
+override_dh_fixperms:
+	dh_fixperms
+	chmod 755 debian/bananapeel/usr/local/lib/bananapeel/tripwire-wrapper
+	chmod 755 debian/bananapeel/var/lib/tripwire-service/tripwire-auto-update.sh

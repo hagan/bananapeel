@@ -1,0 +1,146 @@
+#!/bin/bash
+# Mock twprint for functional tests
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --print-report|--twrfile)
+            shift
+            ;;
+        *)
+            REPORT_FILE="$1"
+            shift
+            ;;
+    esac
+done
+
+# Determine mock case from environment or report filename
+MOCK_CASE="${MOCK_CASE:-B}"
+if [[ "$REPORT_FILE" == *"case-a"* ]]; then
+    MOCK_CASE="A"
+elif [[ "$REPORT_FILE" == *"case-c"* ]]; then
+    MOCK_CASE="C"
+fi
+
+# Output stub report with varying content based on case
+cat <<EOF
+[MOCK] Tripwire Report
+======================
+Report file: ${REPORT_FILE:-unknown}
+Generated: $(date)
+
+Rule Summary:
+================================================================
+  Section: Unix File System
+  Rule Name                       Severity Level    Total Violations
+  --------                        --------------    ----------------
+EOF
+
+# Vary output based on mock case
+case "$MOCK_CASE" in
+    A)
+        # Case A: No violations (OK status)
+        cat <<EOF
+  System Configuration Files      100               0
+  Critical System Boot Files       100               0
+
+Total violations found: 0
+
+No integrity violations detected.
+EOF
+        ;;
+    B)
+        # Case B: Manual review with some changes
+        cat <<EOF
+  System Configuration Files      100               2
+  Critical System Boot Files       100               1
+
+Total violations found: 3
+
+Object Detail:
+================================================================
+
+Modified:
+/etc/ssh/sshd_config
+  Property:            Expected                    Observed
+  -------------        -----------                 -----------
+  Modify Time          Fri 01 Sep 2023 10:00:00    Fri 01 Sep 2023 14:23:45
+  Size                 3284                        3312
+
+/etc/sudoers
+  Property:            Expected                    Observed
+  -------------        -----------                 -----------
+  Modify Time          Thu 31 Aug 2023 09:00:00    Fri 01 Sep 2023 15:12:33
+  Size                 755                         812
+
+Added:
+/usr/local/bin/custom-tool
+  Property:            Expected                    Observed
+  -------------        -----------                 -----------
+  Object Type          ---                         Regular File
+  Size                 ---                         8192
+  Modify Time          ---                         Fri 01 Sep 2023 16:45:00
+EOF
+        ;;
+    C)
+        # Case C: Package updates with many changes
+        cat <<EOF
+  System Configuration Files      100               0
+  Critical System Boot Files       100               87
+
+Total violations found: 87
+
+Object Detail:
+================================================================
+
+Modified:
+/lib/x86_64-linux-gnu/libc.so.6
+  Property:            Expected                    Observed
+  -------------        -----------                 -----------
+  Modify Time          Mon 01 Aug 2023 00:00:00    Fri 01 Sep 2023 10:15:00
+  Size                 2029224                     2029312
+
+/usr/bin/python3
+  Property:            Expected                    Observed
+  -------------        -----------                 -----------
+  Modify Time          Mon 01 Aug 2023 00:00:00    Fri 01 Sep 2023 10:15:00
+  Size                 5479736                     5479840
+
+/usr/lib/x86_64-linux-gnu/libssl.so.3
+  Property:            Expected                    Observed
+  -------------        -----------                 -----------
+  Modify Time          Mon 01 Aug 2023 00:00:00    Fri 01 Sep 2023 10:15:00
+  Size                 598104                      598208
+
+Added:
+/usr/lib/x86_64-linux-gnu/libcrypto.so.3.0.2
+  Property:            Expected                    Observed
+  -------------        -----------                 -----------
+  Object Type          ---                         Regular File
+  Size                 ---                         3354952
+  Modify Time          ---                         Fri 01 Sep 2023 10:15:00
+
+/usr/share/doc/libssl3/changelog.Debian.gz
+  Property:            Expected                    Observed
+  -------------        -----------                 -----------
+  Object Type          ---                         Regular File
+  Size                 ---                         12847
+  Modify Time          ---                         Fri 01 Sep 2023 10:15:00
+
+Removed:
+/usr/lib/x86_64-linux-gnu/libcrypto.so.3.0.1
+  Property:            Expected                    Observed
+  -------------        -----------                 -----------
+  Object Type          Regular File                ---
+  Size                 3354848                     ---
+  Modify Time          Mon 01 Aug 2023 00:00:00    ---
+
+... (84 more package-related changes)
+EOF
+        ;;
+esac
+
+echo ""
+echo "End of report."
+
+exit 0

@@ -1,0 +1,44 @@
+#!/bin/bash
+# Mock sendmail for functional tests
+
+# Read the email from stdin
+EMAIL_CONTENT=$(cat)
+
+# Extract headers
+SUBJECT=$(echo "$EMAIL_CONTENT" | grep "^Subject:" | head -1)
+CONTENT_TYPE=$(echo "$EMAIL_CONTENT" | grep "^Content-Type:" | head -1)
+FROM=$(echo "$EMAIL_CONTENT" | grep "^From:" | head -1)
+TO=$(echo "$EMAIL_CONTENT" | grep "^To:" | head -1)
+
+if [[ -n "$TEST_OUTBOX" ]]; then
+    # Append to test outbox (full email for proper testing)
+    {
+        echo "=== Email Message ==="
+        echo "Date: $(date)"
+        echo "$SUBJECT"
+        echo "$FROM"
+        echo "$TO"
+        echo "$CONTENT_TYPE"
+        echo "---"
+        echo "$EMAIL_CONTENT"
+        echo "=== End Message ==="
+        echo
+    } >> "$TEST_OUTBOX"
+
+    # Optional: write headers to separate file for easy verification
+    if [[ -n "$TEST_HEADER_FILE" ]]; then
+        {
+            echo "$SUBJECT"
+            echo "$FROM"
+            echo "$TO"
+            echo "$CONTENT_TYPE"
+        } >> "$TEST_HEADER_FILE"
+    fi
+else
+    # Echo to stdout for debugging
+    echo "[MOCK] sendmail called"
+    echo "$SUBJECT"
+    echo "$CONTENT_TYPE"
+fi
+
+exit 0

@@ -1,0 +1,16 @@
+Source: bananapeel
+Section: admin
+Priority: optional
+Maintainer: Your Name <your.email@example.com>
+Build-Depends: debhelper-compat (= 13), bash (>= 4.0)
+Standards-Version: 4.6.0
+Homepage: https://github.com/yourusername/bananapeel
+
+Package: bananapeel
+Architecture: all
+Depends: ${misc:Depends}, tripwire, bash (>= 4.0), coreutils
+Recommends: mailutils
+Description: Enhanced Tripwire management tools
+ A collection of tools to enhance and simplify Tripwire
+ intrusion detection system management, including automated
+ setup, passphrase management, and policy optimization.

@@ -1,0 +1,42 @@
+#!/bin/bash
+# Mock sudo for functional tests
+
+# Check if first argument is tripwire binary
+if [[ "$1" == "/usr/sbin/tripwire" ]]; then
+    shift  # Remove the tripwire path
+    exec "$(dirname "$0")/tripwire" "$@"
+fi
+
+# Check if wrapper is being called
+if [[ "$1" == *"tripwire-wrapper"* ]]; then
+    shift  # Remove wrapper path
+
+    # The wrapper's first argument is the command (check, update, print)
+    COMMAND="$1"
+    shift
+
+    # Handle different wrapper commands
+    case "$COMMAND" in
+        print)
+            # Wrapper print command uses twprint
+            exec "$(dirname "$0")/twprint" "$@"
+            ;;
+        check|update)
+            # Other commands use tripwire
+            exec "$(dirname "$0")/tripwire" "$COMMAND" "$@"
+            ;;
+        *)
+            # Default: pass to tripwire
+            exec "$(dirname "$0")/tripwire" "$COMMAND" "$@"
+            ;;
+    esac
+fi
+
+# For other sudo commands, just execute them (testing utilities)
+if [[ "$1" == "-u" ]]; then
+    # Handle sudo -u user command
+    shift 2  # Remove -u and username
+    exec "$@"
+else
+    exec "$@"
+fi

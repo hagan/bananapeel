@@ -1,0 +1,9 @@
+#!/bin/bash
+# Mock hostname for functional tests
+
+if [[ -n "${TEST_HOSTNAME:-}" ]]; then
+  printf "%s\n" "$TEST_HOSTNAME"
+else
+  /bin/hostname "$@"
+fi
+

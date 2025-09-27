@@ -1,0 +1,60 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    remove)
+        # Disable and stop timer if running
+        if systemctl is-enabled bananapeel-update.timer 2>/dev/null; then
+            systemctl disable --now bananapeel-update.timer
+        fi
+
+        # Remove systemd units
+        rm -f /etc/systemd/system/bananapeel-update.service
+        rm -f /etc/systemd/system/bananapeel-update.timer
+        systemctl daemon-reload
+
+        # Remove APT hook if installed
+        rm -f /etc/apt/apt.conf.d/99bananapeel
+        rm -f /etc/apt/apt.conf.d/99tripwire
+
+        # Remove sudoers
+        rm -f /etc/sudoers.d/tripwire-service
+        ;;
+
+    purge)
+        # Everything from remove
+        if systemctl is-enabled bananapeel-update.timer 2>/dev/null; then
+            systemctl disable --now bananapeel-update.timer
+        fi
+        rm -f /etc/systemd/system/bananapeel-update.service
+        rm -f /etc/systemd/system/bananapeel-update.timer
+        systemctl daemon-reload
+        rm -f /etc/apt/apt.conf.d/99bananapeel
+        rm -f /etc/apt/apt.conf.d/99tripwire
+        rm -f /etc/sudoers.d/tripwire-service
+
+        # Also remove logs and service home
+        rm -f /var/log/bananapeel-update.log*
+        rm -f /var/log/tripwire-apt-update.log
+        rm -rf /var/lib/tripwire-service
+        rm -f /etc/logrotate.d/bananapeel
+
+        # Remove service user
+        if getent passwd tripwire >/dev/null; then
+            echo "Removing tripwire service user..."
+            userdel tripwire || true
+        fi
+        ;;
+
+    upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        ;;
+
+    *)
+        echo "postrm called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

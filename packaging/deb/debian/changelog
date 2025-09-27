@@ -1,0 +1,11 @@
+bananapeel (0.2.0-1) unstable; urgency=medium
+
+  * Initial release
+  * Unified automation script with environment overrides
+  * Security wrapper for restricted sudo access
+  * Flexible installer with comprehensive flag support
+  * Cross-platform support for Linux and FreeBSD
+  * Automatic log rotation
+  * Concurrency protection via flock
+
+ -- Bananapeel Team <admin@example.com>  Fri, 27 Sep 2025 12:00:00 +0000

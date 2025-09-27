@@ -1,0 +1,15 @@
+/var/log/bananapeel-update.log {
+    daily
+    rotate 7
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 664 tripwire tripwire
+    sharedscripts
+    postrotate
+        # No hard reload required; keep placeholder for future
+        /bin/true
+    endscript
+}
+

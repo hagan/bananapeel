@@ -1,0 +1,39 @@
+Source: bananapeel
+Section: admin
+Priority: optional
+Maintainer: Bananapeel Project <bananapeel@localhost>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.0
+Homepage: https://github.com/hagan/bananapeel
+Vcs-Browser: https://github.com/hagan/bananapeel
+Vcs-Git: https://github.com/hagan/bananapeel.git
+Rules-Requires-Root: no
+
+Package: bananapeel
+Architecture: all
+Depends: ${misc:Depends},
+         tripwire,
+         bash (>= 4.0),
+         coreutils,
+         sudo,
+         systemd | cron,
+         bsd-mailx | mailutils,
+         openssl
+Recommends: logrotate
+Description: Automated Tripwire integrity monitoring management suite
+ Bananapeel automates Tripwire integrity monitoring with intelligent
+ reporting, optional auto-acceptance of package updates, and comprehensive
+ security features. It reduces noise from legitimate system changes while
+ maintaining strong file integrity monitoring.
+ .
+ Key Features:
+  - Daily automated integrity checks via systemd timer
+  - Rich email reports with detailed change samples from .twr files
+  - Standards-compliant emails (Content-Type, MIME-Version headers)
+  - Optional auto-acceptance of large package updates
+  - Secure passphrase management with PBKDF2 encryption
+  - Security wrapper for restricted sudo access (print/check/update only)
+  - Concurrency protection prevents duplicate runs
+  - JSON logging for observability and monitoring integration
+  - Cross-platform support (Linux, FreeBSD)
+  - Service user migration tools (tripwire → bananapeel)

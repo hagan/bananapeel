@@ -1,0 +1,43 @@
+#!/bin/bash
+# Mock mail command for functional tests
+
+# Parse arguments
+RECIPIENT=""
+SUBJECT=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -s)
+            SUBJECT="$2"
+            shift 2
+            ;;
+        *)
+            RECIPIENT="$1"
+            shift
+            ;;
+    esac
+done
+
+# Read the email body from stdin (if any)
+BODY=$(cat)
+
+if [[ -n "$TEST_OUTBOX" ]]; then
+    # Append to test outbox
+    {
+        echo "=== Email Message ==="
+        echo "Date: $(date)"
+        echo "To: $RECIPIENT"
+        echo "Subject: $SUBJECT"
+        echo "---"
+        echo "$BODY" | head -20
+        echo "=== End Message ==="
+        echo
+    } >> "$TEST_OUTBOX"
+else
+    # Echo to stdout for debugging
+    echo "[MOCK] mail called"
+    echo "To: $RECIPIENT"
+    echo "Subject: $SUBJECT"
+fi
+
+exit 0

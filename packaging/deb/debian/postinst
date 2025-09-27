@@ -1,0 +1,110 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        # Create tripwire service user if not exists
+        if ! getent passwd tripwire >/dev/null; then
+            echo "Creating tripwire service user..."
+            useradd -r -s /bin/bash -d /var/lib/tripwire-service -m tripwire
+        fi
+
+        # Ensure service home exists with correct permissions
+        mkdir -p /var/lib/tripwire-service/.tripwire
+        chown -R tripwire:tripwire /var/lib/tripwire-service
+        chmod 700 /var/lib/tripwire-service/.tripwire
+
+        # Create log file if not exists
+        touch /var/log/bananapeel-update.log
+        chown tripwire:tripwire /var/log/bananapeel-update.log
+        chmod 644 /var/log/bananapeel-update.log
+
+        # Create legacy log symlink for compatibility
+        if [ ! -e /var/log/tripwire-apt-update.log ]; then
+            ln -s bananapeel-update.log /var/log/tripwire-apt-update.log
+        fi
+
+        # Install logrotate configuration
+        cat > /etc/logrotate.d/bananapeel <<'EOF'
+/var/log/bananapeel-update.log {
+    daily
+    rotate 7
+    compress
+    missingok
+    notifempty
+    create 644 tripwire tripwire
+    sharedscripts
+    postrotate
+        systemctl reload rsyslog 2>/dev/null || true
+    endscript
+}
+EOF
+
+        # Install sudoers for wrapper
+        cat > /etc/sudoers.d/tripwire-service <<'EOF'
+# Managed by bananapeel package - DO NOT EDIT
+# Allows tripwire user to run wrapper only
+Defaults:tripwire !requiretty
+tripwire ALL=(root) NOPASSWD: /usr/local/lib/bananapeel/tripwire-wrapper *
+EOF
+        chmod 440 /etc/sudoers.d/tripwire-service
+
+        # Install systemd units
+        cat > /etc/systemd/system/bananapeel-update.service <<'EOF'
+[Unit]
+Description=Bananapeel Tripwire Update Service
+After=network.target
+
+[Service]
+Type=oneshot
+User=tripwire
+Group=tripwire
+ExecStart=/var/lib/tripwire-service/tripwire-auto-update.sh
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+        cat > /etc/systemd/system/bananapeel-update.timer <<'EOF'
+[Unit]
+Description=Daily Bananapeel Tripwire Check at 6:25 AM
+Requires=bananapeel-update.service
+; Legacy alias removed (deprecated); no new legacy aliases will be created
+
+[Timer]
+OnCalendar=daily
+OnCalendar=*-*-* 06:25:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+        # Reload systemd
+        systemctl daemon-reload
+
+        # Prompt for timer enable
+        echo ""
+        echo "Bananapeel has been installed successfully."
+        echo ""
+        echo "To complete setup:"
+        echo "1. Configure passphrase: sudo /var/lib/tripwire-service/setup-passphrase.sh"
+        echo "2. Enable daily checks: sudo systemctl enable --now bananapeel-update.timer"
+        echo ""
+        echo "For custom configuration, run: sudo install-tripwire-automation.sh --help"
+        ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

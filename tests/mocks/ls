@@ -1,0 +1,23 @@
+#!/bin/bash
+# Mock ls for functional tests to avoid filesystem dependencies
+
+# This mock only needs to support: ls -1t <files>
+
+args=()
+for a in "$@"; do
+  case "$a" in
+    -*)
+      # ignore any option flags (-1, -t, -1t, etc.)
+      ;;
+    *)
+      args+=("$a")
+      ;;
+  esac
+done
+
+# Output each path on its own line
+for f in "${args[@]}"; do
+  printf "%s\n" "$f"
+done
+
+exit 0

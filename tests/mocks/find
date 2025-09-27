@@ -1,0 +1,25 @@
+#!/bin/bash
+# Mock find for functional tests
+
+# If looking for tripwire reports, return a fake one (allow override)
+if [[ "$*" == *"/var/lib/tripwire/report"* ]]; then
+    # Use TEST_TWR_NAME if provided to test escaping, otherwise a default path
+    if [[ -n "${TEST_TWR_NAME:-}" ]]; then
+        TWR_FILE="$TEST_TWR_NAME"
+    else
+        TWR_FILE="/var/lib/tripwire/report/test-host-$(date +%Y%m%d-%H%M%S).twr"
+    fi
+
+    # Create the file if it doesn't exist (for test environment)
+    if [[ -n "${TMPDIR:-}" ]] && [[ ! -f "$TWR_FILE" ]]; then
+        # Use TMPDIR-relative path if TMPDIR is set
+        REAL_TWR="$TMPDIR$TWR_FILE"
+        mkdir -p "$(dirname "$REAL_TWR")"
+        touch "$REAL_TWR" 2>/dev/null || touch "$TWR_FILE" 2>/dev/null || true
+    fi
+
+    printf "%s\0" "$TWR_FILE"
+else
+    # For other find commands, pass through to real find
+    /usr/bin/find "$@"
+fi

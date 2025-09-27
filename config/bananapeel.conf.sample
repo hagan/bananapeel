@@ -1,0 +1,32 @@
+# Bananapeel Configuration File
+#
+# This file provides default configuration for the Bananapeel Tripwire automation.
+# Values can be overridden by systemd Environment= directives (highest precedence).
+#
+# Configuration precedence (highest to lowest):
+# 1. Systemd Environment= variables (EMAIL_TO, AUTO_ACCEPT_THRESHOLD, DRY_RUN)
+# 2. This configuration file (BANANAPEEL_* variables)
+# 3. Built-in defaults in the automation script
+#
+# To modify settings, copy this file to /etc/bananapeel/bananapeel.conf
+# and adjust values as needed.
+
+# Email recipient for Tripwire reports
+# Default: root (local system administrator)
+BANANAPEEL_EMAIL_TO="root"
+
+# Threshold for auto-accepting changes
+# If the number of changed system files exceeds this value,
+# changes will be automatically accepted to update the database.
+# Set to 0 to disable auto-acceptance.
+# Default: 50
+BANANAPEEL_THRESHOLD="50"
+
+# Dry-run mode
+# Set to 1 to enable test mode (no changes will be made)
+# Set to 0 for normal operation
+# Default: 0
+BANANAPEEL_DRY_RUN="0"
+
+# Additional configuration options can be added here in future versions
+# Format: BANANAPEEL_<OPTION>="value"

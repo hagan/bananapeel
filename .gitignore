@@ -1,0 +1,41 @@
+# Build artifacts
+build/
+*.deb
+*.rpm
+*.pkg
+*.tar.gz
+*.tar.bz2
+
+# Temporary files
+*.tmp
+*.swp
+*.bak
+*~
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.sublime-*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Logs
+*.log
+logs/
+
+# Test coverage
+coverage/
+.coverage
+htmlcov/
+
+# Local configuration
+config.local
+*.local.conf

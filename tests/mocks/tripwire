@@ -1,0 +1,88 @@
+#!/bin/bash
+# Mock tripwire for functional tests
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --check|--quiet|--email-report)
+            shift
+            ;;
+        --update|--accept-all)
+            # For update scenarios (not used in basic tests)
+            echo "[MOCK] tripwire update called"
+            exit 0
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
+# Output based on MOCK_CASE environment variable
+case "${MOCK_CASE:-A}" in
+    A)
+        # OK - No violations
+        cat <<EOF
+Parsing policy file: /etc/tripwire/tw.pol
+*** Processing Unix File System ***
+Performing integrity check...
+Checked 1000 files
+
+Total violations found: 0
+
+*** End of report ***
+EOF
+        ;;
+    B)
+        # Manual review needed - 3 violations, no system paths
+        cat <<EOF
+Parsing policy file: /etc/tripwire/tw.pol
+*** Processing Unix File System ***
+Performing integrity check...
+Checked 1000 files
+
+Rule: User configuration files
+  /home/user/.bashrc - Modified
+
+Rule: Application data
+  /var/www/html/index.html - Modified
+  /opt/myapp/config.ini - Modified
+
+Total violations found: 3
+
+*** End of report ***
+EOF
+        ;;
+    C)
+        # Package updates detected - 100 violations including system paths
+        cat <<EOF
+Parsing policy file: /etc/tripwire/tw.pol
+*** Processing Unix File System ***
+Performing integrity check...
+Checked 1000 files
+
+Rule: System binaries
+EOF
+        # Generate many system path violations
+        for i in {1..30}; do
+            echo "  /usr/bin/command$i - Modified"
+        done
+        for i in {1..30}; do
+            echo "  /lib/x86_64-linux-gnu/lib$i.so - Modified"
+        done
+        for i in {1..20}; do
+            echo "  /sbin/tool$i - Modified"
+        done
+        for i in {1..20}; do
+            echo "  /bin/util$i - Modified"
+        done
+        cat <<EOF
+
+Total violations found: 100
+
+*** End of report ***
+EOF
+        ;;
+esac
+
+exit 0

@@ -1,0 +1,640 @@
+name: Lint and Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  shellcheck:
+    name: ShellCheck Linting
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Install ShellCheck
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y shellcheck
+
+    - name: Run ShellCheck
+      run: |
+        echo "Running ShellCheck on all shell scripts..."
+        find . -type f -name "*.sh" -print0 | while IFS= read -r -d '' file; do
+          echo "Checking: $file"
+          shellcheck "$file" || true
+        done
+
+        # Run strict check on critical scripts
+        echo ""
+        echo "Running strict checks on critical scripts..."
+        for script in \
+          scripts/automation/tripwire-auto-update.sh \
+          scripts/wrappers/tripwire-wrapper.sh \
+          scripts/setup/install-tripwire-automation.sh \
+          scripts/setup/install-tripwire-automation-crossplatform.sh; do
+          if [ -f "$script" ]; then
+            echo "Strict check: $script"
+            shellcheck -S error "$script"
+          fi
+        done
+
+  syntax-check:
+    name: Bash Syntax Check
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Run Bash syntax check
+      run: |
+        echo "Running bash -n syntax check on all shell scripts..."
+        EXIT_CODE=0
+        find . -type f -name "*.sh" -print0 | while IFS= read -r -d '' file; do
+          echo "Syntax check: $file"
+          if ! bash -n "$file"; then
+            echo "ERROR: Syntax error in $file"
+            EXIT_CODE=1
+          fi
+        done
+        exit $EXIT_CODE
+
+  test-suite:
+    name: Run Test Suite
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up test environment
+      run: |
+        # Install dependencies
+        sudo apt-get update
+        sudo apt-get install -y bash coreutils findutils grep
+
+        # Make scripts executable
+        chmod +x tests/run_tests.sh
+        find scripts -name "*.sh" -exec chmod +x {} \;
+
+    - name: Run tests (non-strict)
+      run: |
+        echo "Running test suite (non-strict mode)..."
+        cd tests
+        ./run_tests.sh
+
+    - name: Run tests (strict mode)
+      run: |
+        echo "Running test suite (strict mode)..."
+        cd tests
+        STRICT=1 ./run_tests.sh
+
+  functional-tests:
+    name: Functional Tests
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Install dependencies
+      run: |
+        # Best-effort install jq for JSON parsing
+        sudo apt-get update
+        sudo apt-get install -y jq || true
+
+    - name: Set up test environment
+      run: |
+        # Make all scripts executable
+        chmod +x scripts/automation/tripwire-auto-update.sh
+        chmod +x scripts/setup/tripwire-summary.sh
+        chmod +x tests/mocks/*
+        chmod +x tests/functional/test_automation.sh
+
+    - name: Run functional tests
+      run: |
+        echo "Running functional tests (rootless, no systemd)..."
+        make test-functional
+
+    - name: Run JSON escaping test only
+      run: |
+        echo "Running JSON escaping test only..."
+        chmod +x tests/functional/test_automation.sh
+        TEST_ONLY=escape bash tests/functional/test_automation.sh
+
+    - name: Run status extensions tests
+      run: |
+        echo "Running status extensions tests (TASK-073)..."
+        chmod +x tests/functional/test_status_extensions.sh
+        bash tests/functional/test_status_extensions.sh
+
+    - name: Status helper smoke test
+      run: |
+        echo "Testing status-check helper (monitoring one-liner)..."
+        chmod +x scripts/maintenance/status-check.sh
+        chmod +x scripts/setup/tripwire-summary.sh
+
+        TMPLOG=$(mktemp)
+        echo 'SUMMARY_JSON={"ts":"2025-09-29T06:25:00Z","host":"test","violations":3,"sys_changes":1,"status":"MANUAL REVIEW REQUIRED","latest_twr":"/var/lib/tripwire/report/test.twr"}' >> "$TMPLOG"
+
+        set +e
+        LOGFILE="$TMPLOG" bash scripts/maintenance/status-check.sh > /tmp/status_output.txt 2>&1
+        EC=$?
+        set -e
+        echo "Exit code: $EC"
+        cat /tmp/status_output.txt
+
+        if [ "$EC" -ne 1 ]; then
+          echo "ERROR: Expected exit code 1 for MANUAL REVIEW REQUIRED"; exit 1
+        fi
+        if ! grep -q "MANUAL REVIEW REQUIRED" /tmp/status_output.txt; then
+          echo "ERROR: Expected status string in output"; exit 1
+        fi
+        echo "✓ status-check helper produced expected output and exit code"
+
+    - name: Run installer migration path test
+      run: |
+        echo "Running installer migration path test (TASK-062)..."
+        chmod +x tests/functional/test_installer_migration_path.sh
+        bash tests/functional/test_installer_migration_path.sh
+
+    - name: Run user migration tests
+      run: |
+        echo "Running service user migration tests (TASK-062)..."
+        chmod +x scripts/setup/migrate-service-user.sh
+        chmod +x tests/functional/test_user_migration.sh
+        bash tests/functional/test_user_migration.sh
+
+    - name: Run deprecation warning tests
+      run: |
+        echo "Running deprecation warning tests (TASK-070)..."
+        chmod +x tests/functional/test_deprecation_warnings.sh
+        bash tests/functional/test_deprecation_warnings.sh
+
+  platform-compatibility:
+    name: Platform Compatibility Check
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, ubuntu-20.04]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Check platform detection
+      run: |
+        echo "Testing platform detection on ${{ matrix.os }}..."
+        # Source the detect_platform function
+        grep -A 30 "^detect_platform()" scripts/setup/install-tripwire-automation-crossplatform.sh > /tmp/detect.sh
+        echo "detect_platform" >> /tmp/detect.sh
+        echo 'echo "Platform: $PLATFORM"' >> /tmp/detect.sh
+        echo 'echo "Distro: $DISTRO"' >> /tmp/detect.sh
+        echo 'echo "Package Manager: $PKG_MANAGER"' >> /tmp/detect.sh
+        echo 'echo "Scheduler: $SCHEDULER"' >> /tmp/detect.sh
+        bash /tmp/detect.sh
+
+  documentation:
+    name: Documentation Check
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Check for required documentation
+      run: |
+        echo "Checking for required documentation files..."
+        REQUIRED_FILES=(
+          "README.md"
+          ".claude/CLAUDE.md"
+          ".claude/context.md"
+          ".claude/instructions.md"
+          ".claude/tasks/TASKS-BOARD.md"
+        )
+
+        for file in "${REQUIRED_FILES[@]}"; do
+          if [ ! -f "$file" ]; then
+            echo "ERROR: Missing required documentation: $file"
+            exit 1
+          else
+            echo "✓ Found: $file"
+          fi
+        done
+
+        echo ""
+        echo "All required documentation files present."
+
+  package-prep:
+    name: Validate Package Preparation
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        # Tools for prep and metadata inspection (best-effort installs)
+        sudo apt-get install -y rsync rpm dpkg-dev lintian || true
+
+    - name: Get version
+      id: version
+      run: |
+        VERSION=$(cat VERSION 2>/dev/null || echo "1.0.0")
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Project version: $VERSION"
+
+    - name: Test sample config installation
+      run: |
+        echo "Testing sample config installation with DESTDIR..."
+        STAGE_DIR="$PWD/build/stage"
+        rm -rf "$STAGE_DIR"
+        make install DESTDIR="$STAGE_DIR" PREFIX=/usr
+
+        # Verify sample config was installed
+        if [ -f "$STAGE_DIR/usr/share/bananapeel/bananapeel.conf.sample" ]; then
+          echo "✓ Sample config installed to /usr/share/bananapeel/"
+        else
+          echo "ERROR: Sample config not found at $STAGE_DIR/usr/share/bananapeel/bananapeel.conf.sample"
+          exit 1
+        fi
+
+        # Verify shared library installed
+        if [ -f "$STAGE_DIR/usr/share/bananapeel/bananapeel-lib.sh" ]; then
+          echo "✓ Shared library installed at /usr/share/bananapeel/bananapeel-lib.sh"
+        else
+          echo "ERROR: Shared library not found at $STAGE_DIR/usr/share/bananapeel/bananapeel-lib.sh"
+          exit 1
+        fi
+
+        # Verify wrapper installed and executable
+        if [ -x "$STAGE_DIR/usr/local/lib/bananapeel/tripwire-wrapper" ]; then
+          echo "✓ Wrapper installed and executable at /usr/local/lib/bananapeel/tripwire-wrapper"
+        else
+          echo "ERROR: Wrapper missing or not executable at $STAGE_DIR/usr/local/lib/bananapeel/tripwire-wrapper"
+          ls -l "$STAGE_DIR/usr/local/lib/bananapeel" || true
+          exit 1
+        fi
+
+        # Verify bananapeel-status symlink exists and points to the runtime path
+        if test -L "$STAGE_DIR/usr/bin/bananapeel-status"; then
+          TARGET=$(readlink "$STAGE_DIR/usr/bin/bananapeel-status" 2>/dev/null || true)
+          if [ "$TARGET" = "/usr/bin/tripwire-summary.sh" ]; then
+            echo "✓ bananapeel-status points to /usr/bin/tripwire-summary.sh"
+          else
+            echo "ERROR: bananapeel-status target unexpected: ${TARGET:-<empty>}"
+            ls -l "$STAGE_DIR/usr/bin/bananapeel-status" || true
+            exit 1
+          fi
+        else
+          echo "ERROR: bananapeel-status symlink not found at $STAGE_DIR/usr/bin/bananapeel-status"
+          ls -l "$STAGE_DIR/usr/bin" | grep -E "(bananapeel-status|tripwire-summary)" || true
+          exit 1
+        fi
+
+    - name: Prepare package trees
+      run: |
+        echo "Preparing Debian and RPM package trees..."
+        make package-prep-deb package-prep-rpm
+
+    - name: Verify Debian tree
+      run: |
+        echo "Verifying Debian package tree..."
+        PROJECT="bananapeel"
+        VERSION="${{ steps.version.outputs.version }}"
+
+        # Check required files exist
+        test -f "build/debian/${PROJECT}-${VERSION}/debian/control" || (echo "ERROR: debian/control missing" && exit 1)
+        test -f "build/debian/${PROJECT}-${VERSION}/debian/rules" || (echo "ERROR: debian/rules missing" && exit 1)
+        test -f "build/debian/${PROJECT}-${VERSION}/debian/changelog" || (echo "ERROR: debian/changelog missing" && exit 1)
+        test -f "build/debian/${PROJECT}-${VERSION}/debian/postinst" || (echo "ERROR: debian/postinst missing" && exit 1)
+        test -f "build/debian/${PROJECT}-${VERSION}/debian/postrm" || (echo "ERROR: debian/postrm missing" && exit 1)
+
+        # Check version in changelog header
+        if grep -q "^${PROJECT} (${VERSION}-1)" "build/debian/${PROJECT}-${VERSION}/debian/changelog"; then
+          echo "✓ Debian changelog version matches VERSION file"
+        else
+          echo "ERROR: Debian changelog version mismatch"
+          head -1 "build/debian/${PROJECT}-${VERSION}/debian/changelog"
+          exit 1
+        fi
+
+        # Validate Debian metadata fields
+        echo "Validating Debian metadata..."
+        if ! grep -q "^Maintainer:.*Bananapeel Project" "build/debian/${PROJECT}-${VERSION}/debian/control"; then
+          echo "ERROR: Debian control missing or has incorrect Maintainer field"
+          exit 1
+        fi
+        if ! grep -q "^Homepage:.*github.com/hagan/bananapeel" "build/debian/${PROJECT}-${VERSION}/debian/control"; then
+          echo "ERROR: Debian control missing or has incorrect Homepage field"
+          exit 1
+        fi
+        if ! grep -q "^Description:.*Automated Tripwire integrity monitoring" "build/debian/${PROJECT}-${VERSION}/debian/control"; then
+          echo "ERROR: Debian control missing or has incorrect Description field"
+          exit 1
+        fi
+        echo "✓ Debian metadata fields validated"
+
+        # Optional: parse changelog with dpkg-parsechangelog if available
+        if command -v dpkg-parsechangelog >/dev/null 2>&1; then
+          echo "Parsed changelog:"
+          dpkg-parsechangelog -l"build/debian/${PROJECT}-${VERSION}/debian/changelog" | sed -n '1,6p'
+        else
+          echo "dpkg-parsechangelog not available; skipping"
+        fi
+
+    - name: Verify RPM tree
+      run: |
+        echo "Verifying RPM package tree..."
+        PROJECT="bananapeel"
+        VERSION="${{ steps.version.outputs.version }}"
+
+        # Check required files exist
+        test -f "build/rpm/SOURCES/${PROJECT}-${VERSION}.tar.gz" || (echo "ERROR: Source tarball missing" && exit 1)
+        test -f "build/rpm/SPECS/${PROJECT}.spec" || (echo "ERROR: Spec file missing" && exit 1)
+
+        # Check version in spec file
+        if grep -q "^Version:.*${VERSION}" "build/rpm/SPECS/${PROJECT}.spec"; then
+          echo "✓ RPM spec version matches VERSION file"
+        else
+          echo "ERROR: RPM spec version mismatch"
+          grep "^Version:" "build/rpm/SPECS/${PROJECT}.spec"
+          exit 1
+        fi
+
+        # Validate RPM metadata fields
+        echo "Validating RPM metadata..."
+        if ! grep -q "^Summary:.*Automated Tripwire integrity monitoring" "build/rpm/SPECS/${PROJECT}.spec"; then
+          echo "ERROR: RPM spec missing or has incorrect Summary field"
+          exit 1
+        fi
+        if ! grep -q "^URL:.*github.com/hagan/bananapeel" "build/rpm/SPECS/${PROJECT}.spec"; then
+          echo "ERROR: RPM spec missing or has incorrect URL field"
+          exit 1
+        fi
+        if ! grep -q "^Packager:.*Bananapeel Project" "build/rpm/SPECS/${PROJECT}.spec"; then
+          echo "ERROR: RPM spec missing or has incorrect Packager field"
+          exit 1
+        fi
+        echo "✓ RPM metadata fields validated"
+
+        # Optional: validate spec file if rpmspec is available
+        if command -v rpmspec >/dev/null 2>&1; then
+          echo "Validating RPM spec file..."
+          rpmspec -P "build/rpm/SPECS/${PROJECT}.spec" >/dev/null || echo "WARNING: rpmspec validation failed"
+        else
+          echo "rpmspec not available, skipping spec validation"
+        fi
+
+    - name: List artifacts
+      run: |
+        echo "Package preparation artifacts:"
+        echo "================================"
+        echo "Debian tree:"
+        find build/debian -type f -name "control" -o -name "rules" -o -name "changelog" | head -10
+        echo ""
+        echo "RPM tree:"
+        find build/rpm -type f -name "*.tar.gz" -o -name "*.spec" | head -10
+
+  legacy-guard:
+    name: Legacy Code Guard
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Check for new legacy aliases
+      run: |
+        echo "Checking for new legacy 'tripwire-update' aliases..."
+
+        # Check for new Alias= directives in systemd units (should be removed)
+        if grep -r "^Alias=tripwire-update" scripts/ packaging/ config/ 2>/dev/null; then
+          echo "ERROR: Found legacy 'tripwire-update' alias in systemd unit"
+          echo "       Legacy aliases should not be created (v0.3.0 deprecation)"
+          exit 1
+        fi
+
+        echo "✓ No new legacy aliases found"
+
+    - name: Check for legacy artifact creation
+      run: |
+        echo "Checking for code that creates legacy artifacts..."
+
+        # Check for creation of legacy symlinks
+        if grep -r "ln.*tripwire-update" scripts/ packaging/ 2>/dev/null | grep -v "^#"; then
+          echo "ERROR: Found code creating 'tripwire-update' symlinks"
+          echo "       Legacy symlinks should not be created"
+          exit 1
+        fi
+
+        # Check for hardcoded legacy log paths (except in migration/status scripts)
+        if grep -r "/var/log/tripwire-apt-update.log" scripts/ 2>/dev/null | \
+           grep -v "tripwire-summary.sh" | \
+           grep -v "migrate-service-user.sh" | \
+           grep -v "install-tripwire-automation" | \
+           grep -v "tripwire-auto-update.sh" | \
+           grep -v "^#"; then
+          echo "ERROR: Found hardcoded legacy log path"
+          echo "       Use /var/log/bananapeel-update.log instead"
+          exit 1
+        fi
+
+        echo "✓ No legacy artifact creation found"
+
+    - name: Verify deprecation warnings exist
+      run: |
+        echo "Verifying deprecation warnings are in place..."
+
+        # Check that status script has deprecation detection
+        if ! grep -q "check_legacy_artifacts" scripts/setup/tripwire-summary.sh; then
+          echo "ERROR: Status script missing legacy artifact detection"
+          exit 1
+        fi
+
+        # Check that automation script has deprecation warning
+        if ! grep -q "Legacy tripwire artifacts detected" scripts/automation/tripwire-auto-update.sh; then
+          echo "ERROR: Automation script missing deprecation warning"
+          exit 1
+        fi
+
+        # Check that installers have deprecation warnings
+        for installer in scripts/setup/install-tripwire-automation*.sh; do
+          if ! grep -q "Legacy tripwire artifacts detected" "$installer"; then
+            echo "ERROR: Installer $installer missing deprecation warning"
+            exit 1
+          fi
+        done
+
+        echo "✓ All deprecation warnings in place"
+
+  security-check:
+    name: Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Check for hardcoded secrets
+      run: |
+        echo "Checking for potential hardcoded secrets..."
+        # Check for common secret patterns
+        if grep -r -E "(password|passwd|pwd|secret|api[_-]?key|token|credential)" \
+           --include="*.sh" \
+           --exclude-dir=".git" \
+           --exclude-dir="docs" \
+           --exclude-dir=".claude" . | \
+           grep -v -E "(^[^:]+:\s*#|passphrase|local-passphrase|PASSPHRASE|change.*passphrase)"; then
+          echo "WARNING: Potential secrets found. Please review the above matches."
+        else
+          echo "✓ No obvious secrets found"
+        fi
+
+    - name: Validate sudoers syntax (wrapper mode)
+      run: |
+        echo "Validating sudoers syntax for wrapper mode..."
+        # Extract and test wrapper mode sudoers content
+        SERVICE_USER="tripwire"
+        USE_WRAPPER=1 bash -c '
+          SUDOERS_FILE="/tmp/test-sudoers-wrapper"
+          SERVICE_USER="tripwire"
+          cat > "$SUDOERS_FILE" << "EOF"
+# Bananapeel service account sudo permissions - Restricted wrapper only
+# Only allows execution of the bananapeel tripwire-wrapper for security
+# Wrapper validates all arguments and restricts operations to safe subset
+
+# Define command alias for the wrapper (no direct tripwire binary access)
+Cmnd_Alias BANANAPEEL_WRAPPER = /usr/local/lib/bananapeel/tripwire-wrapper
+
+# Grant permissions to service user for wrapper only (no environment manipulation)
+Defaults!BANANAPEEL_WRAPPER env_reset
+Defaults!BANANAPEEL_WRAPPER !setenv
+Defaults!BANANAPEEL_WRAPPER secure_path=/usr/sbin:/usr/bin:/bin
+tripwire ALL=(root) NOPASSWD: BANANAPEEL_WRAPPER
+EOF
+          # Validate syntax
+          if ! visudo -c -f "$SUDOERS_FILE" 2>&1; then
+            echo "ERROR: Wrapper mode sudoers syntax validation failed"
+            exit 1
+          fi
+          echo "✓ Wrapper mode sudoers syntax valid"
+        '
+
+    - name: Validate sudoers syntax (debug mode)
+      run: |
+        echo "Validating sudoers syntax for debug mode..."
+        # Extract and test debug mode sudoers content
+        SERVICE_USER="tripwire"
+        USE_WRAPPER=0 bash -c '
+          SUDOERS_FILE="/tmp/test-sudoers-debug"
+          SERVICE_USER="tripwire"
+          cat > "$SUDOERS_FILE" << "EOF"
+# Bananapeel service account sudo permissions - Debug mode (USE_WRAPPER=0)
+# Only allows specific tripwire operations needed for automation
+# WARNING: This mode bypasses wrapper validation. Use for debugging only.
+
+# Check operations (no dangerous flags like --init)
+Cmnd_Alias TRIPWIRE_CHECK = /usr/sbin/tripwire --check, \
+                            /usr/sbin/tripwire --check --quiet, \
+                            /usr/sbin/tripwire --check --quiet --email-report
+
+# Update operations (path-constrained to report directory only)
+Cmnd_Alias TRIPWIRE_UPDATE = /usr/sbin/tripwire --update --twrfile /var/lib/tripwire/report/*.twr, \
+                             /usr/sbin/tripwire --update --twrfile /var/lib/tripwire/report/*.twr --accept-all
+
+# Print operations (path-constrained to report directory only)
+Cmnd_Alias TRIPWIRE_PRINT = /usr/sbin/twprint --print-report --twrfile /var/lib/tripwire/report/*.twr
+
+# Environment reset for security
+Defaults!TRIPWIRE_CHECK,TRIPWIRE_UPDATE,TRIPWIRE_PRINT env_reset
+Defaults!TRIPWIRE_CHECK,TRIPWIRE_UPDATE,TRIPWIRE_PRINT !setenv
+Defaults!TRIPWIRE_CHECK,TRIPWIRE_UPDATE,TRIPWIRE_PRINT secure_path=/usr/sbin:/usr/bin:/bin
+tripwire ALL=(root) NOPASSWD: TRIPWIRE_CHECK, TRIPWIRE_UPDATE, TRIPWIRE_PRINT
+EOF
+          # Validate syntax
+          if ! visudo -c -f "$SUDOERS_FILE" 2>&1; then
+            echo "ERROR: Debug mode sudoers syntax validation failed"
+            exit 1
+          fi
+          echo "✓ Debug mode sudoers syntax valid"
+        '
+
+    - name: Check sudoers security patterns
+      run: |
+        echo "Checking sudoers security patterns..."
+        SETUP_SCRIPT="scripts/setup/setup-tripwire-service-account.sh"
+
+        # Check wrapper mode contains only wrapper
+        echo "Checking wrapper mode grants only tripwire-wrapper..."
+        if ! grep -A 10 'if \[ "\${USE_WRAPPER:-1}" = "1" \]' "$SETUP_SCRIPT" | \
+             grep -q "BANANAPEEL_WRAPPER = /usr/local/lib/bananapeel/tripwire-wrapper"; then
+          echo "ERROR: Wrapper mode must use /usr/local/lib/bananapeel/tripwire-wrapper"
+          exit 1
+        fi
+
+        # Ensure wrapper mode doesn't grant direct /usr/sbin/tripwire or /usr/sbin/twprint
+        if grep -A 15 'if \[ "\${USE_WRAPPER:-1}" = "1" \]' "$SETUP_SCRIPT" | \
+           grep -E "/(usr/sbin/tripwire|usr/sbin/twprint)" | grep -v "^#"; then
+          echo "ERROR: Wrapper mode must not grant direct tripwire/twprint binary access"
+          exit 1
+        fi
+        echo "✓ Wrapper mode grants only wrapper access"
+
+        # Check debug mode is path-constrained
+        echo "Checking debug mode uses /var/lib/tripwire/report/*.twr constraint..."
+        if ! grep -A 20 'else' "$SETUP_SCRIPT" | \
+             grep -q "/var/lib/tripwire/report/\*.twr"; then
+          echo "ERROR: Debug mode must constrain paths to /var/lib/tripwire/report/*.twr"
+          exit 1
+        fi
+        echo "✓ Debug mode uses path constraints"
+
+        # Ensure debug mode doesn't allow --init or other dangerous operations
+        if grep -A 25 'else' "$SETUP_SCRIPT" | \
+           grep -E "(--init|--generate-keys|--update-policy)" | grep -v "^#"; then
+          echo "ERROR: Debug mode must not allow dangerous operations (--init, --generate-keys, etc.)"
+          exit 1
+        fi
+        echo "✓ Debug mode excludes dangerous operations"
+
+        # Check both modes use env_reset
+        echo "Checking both modes use env_reset..."
+        if ! grep -q "Defaults!BANANAPEEL_WRAPPER env_reset" "$SETUP_SCRIPT"; then
+          echo "ERROR: Wrapper mode must use env_reset"
+          exit 1
+        fi
+        if ! grep -q "Defaults!TRIPWIRE_CHECK,TRIPWIRE_UPDATE,TRIPWIRE_PRINT env_reset" "$SETUP_SCRIPT"; then
+          echo "ERROR: Debug mode must use env_reset"
+          exit 1
+        fi
+        echo "✓ Both modes use env_reset"
+
+        # Check both modes disallow setenv and set secure_path
+        echo "Checking both modes disallow setenv and set secure_path..."
+        if ! grep -q "Defaults!BANANAPEEL_WRAPPER !setenv" "$SETUP_SCRIPT"; then
+          echo "ERROR: Wrapper mode must disallow setenv"
+          exit 1
+        fi
+        if ! grep -q "Defaults!TRIPWIRE_CHECK,TRIPWIRE_UPDATE,TRIPWIRE_PRINT !setenv" "$SETUP_SCRIPT"; then
+          echo "ERROR: Debug mode must disallow setenv"
+          exit 1
+        fi
+        if ! grep -q "Defaults!BANANAPEEL_WRAPPER secure_path=" "$SETUP_SCRIPT"; then
+          echo "ERROR: Wrapper mode should set a secure_path"
+          exit 1
+        fi
+        if ! grep -q "Defaults!TRIPWIRE_CHECK,TRIPWIRE_UPDATE,TRIPWIRE_PRINT secure_path=" "$SETUP_SCRIPT"; then
+          echo "ERROR: Debug mode should set a secure_path"
+          exit 1
+        fi
+        echo "✓ setenv disabled and secure_path set for both modes"
+
+        echo ""
+        echo "✓ All sudoers security patterns validated"
