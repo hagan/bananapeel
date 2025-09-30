@@ -180,7 +180,6 @@ grep "violations\|completed" /var/log/bananapeel-update.log | tail -20
 
 ### Project Documentation
 - [Main README](../README.md) - Project overview and features
-- [AGENTS.md](../AGENTS.md) - Contributor guidelines
 - [Makefile](../Makefile) - Build and installation targets
 
 ### External Resources
@@ -190,4 +189,3 @@ grep "violations\|completed" /var/log/bananapeel-update.log | tail -20
 
 ---
 
-*Note: For internal development documentation and project management, see the `.claude/` directory.*

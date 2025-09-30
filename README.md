@@ -604,7 +604,7 @@ Tip: To quickly smoke-test locally without the full suite, see `tests/functional
 - [PASSPHRASE-GUIDE.md](docs/PASSPHRASE-GUIDE.md) - Passphrase management details
 - [FINAL-SETUP.md](docs/FINAL-SETUP.md) - Complete setup walkthrough
 - [CURRENT-STATUS.md](docs/CURRENT-STATUS.md) - Implementation status
-- [AGENTS.md](AGENTS.md) - Contributor guidelines
+
 
 ## Deprecation Timeline
 
@@ -646,11 +646,12 @@ sudo bananapeel-status
 
 ## Contributing
 
-1. Review [AGENTS.md](AGENTS.md) for coding standards and guidelines
-2. Test changes in a VM or container first
-3. Run `make test` before submitting
-4. Use conventional commits (`feat:`, `fix:`, `docs:`)
-5. Include test results and security impact in PRs
+See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines.
+
+1. Test changes in a VM or container first
+2. Run `make test` before submitting
+3. Use conventional commits (`feat:`, `fix:`, `docs:`)
+4. Include test results and security impact in PRs
 
 ## Troubleshooting
 
@@ -750,18 +751,26 @@ This project is licensed under the GPL-3.0 License - see [LICENSE](LICENSE) file
 
 ## Roadmap
 
-See the prioritized task board at .claude/tasks/TASKS-BOARD.md for current and upcoming work.
+Roadmap and planning are tracked on the project issue tracker.
 
 ## Support
 
 For issues, feature requests, or questions:
 - Open an issue on the project repository
 - Check existing documentation in [docs/](docs/)
-- Review [.claude/issues/](.claude/issues/) for known problems
+
 
 ---
 
 **Note**: This project enhances Tripwire but is not affiliated with the official Tripwire project. Always test in a non-production environment first.
+
+## Contributors
+
+Thanks to all the amazing people who have contributed to this project.
+
+<!-- CONTRIBUTORS:START -->
+<!-- CONTRIBUTORS:END -->
+
 ## Security Wrapper
 
 By default, automation runs tripwire commands via a restricted wrapper at `/usr/local/lib/bananapeel/tripwire-wrapper` to minimize sudo exposure. The installer flag `--no-wrapper` disables use of the wrapper and grants a minimal set of direct tripwire commands in sudoers (for debugging only). Leave the wrapper enabled for production systems.

@@ -500,71 +500,61 @@ jobs:
     - name: Validate sudoers syntax (wrapper mode)
       run: |
         echo "Validating sudoers syntax for wrapper mode..."
-        # Extract and test wrapper mode sudoers content
-        SERVICE_USER="tripwire"
-        USE_WRAPPER=1 bash -c '
-          SUDOERS_FILE="/tmp/test-sudoers-wrapper"
-          SERVICE_USER="tripwire"
-          cat > "$SUDOERS_FILE" << "EOF"
-# Bananapeel service account sudo permissions - Restricted wrapper only
-# Only allows execution of the bananapeel tripwire-wrapper for security
-# Wrapper validates all arguments and restricts operations to safe subset
+        SUDOERS_FILE="/tmp/test-sudoers-wrapper"
+        cat > "$SUDOERS_FILE" << 'EOF'
+        # Bananapeel service account sudo permissions - Restricted wrapper only
+        # Only allows execution of the bananapeel tripwire-wrapper for security
+        # Wrapper validates all arguments and restricts operations to safe subset
 
-# Define command alias for the wrapper (no direct tripwire binary access)
-Cmnd_Alias BANANAPEEL_WRAPPER = /usr/local/lib/bananapeel/tripwire-wrapper
+        # Define command alias for the wrapper (no direct tripwire binary access)
+        Cmnd_Alias BANANAPEEL_WRAPPER = /usr/local/lib/bananapeel/tripwire-wrapper
 
-# Grant permissions to service user for wrapper only (no environment manipulation)
-Defaults!BANANAPEEL_WRAPPER env_reset
-Defaults!BANANAPEEL_WRAPPER !setenv
-Defaults!BANANAPEEL_WRAPPER secure_path=/usr/sbin:/usr/bin:/bin
-tripwire ALL=(root) NOPASSWD: BANANAPEEL_WRAPPER
-EOF
-          # Validate syntax
-          if ! visudo -c -f "$SUDOERS_FILE" 2>&1; then
-            echo "ERROR: Wrapper mode sudoers syntax validation failed"
-            exit 1
-          fi
-          echo "✓ Wrapper mode sudoers syntax valid"
-        '
+        # Grant permissions to service user for wrapper only (no environment manipulation)
+        Defaults!BANANAPEEL_WRAPPER env_reset
+        Defaults!BANANAPEEL_WRAPPER !setenv
+        Defaults!BANANAPEEL_WRAPPER secure_path=/usr/sbin:/usr/bin:/bin
+        tripwire ALL=(root) NOPASSWD: BANANAPEEL_WRAPPER
+        EOF
+        # Validate syntax
+        if ! visudo -c -f "$SUDOERS_FILE" 2>&1; then
+          echo "ERROR: Wrapper mode sudoers syntax validation failed"
+          exit 1
+        fi
+        echo "✓ Wrapper mode sudoers syntax valid"
 
     - name: Validate sudoers syntax (debug mode)
       run: |
         echo "Validating sudoers syntax for debug mode..."
-        # Extract and test debug mode sudoers content
-        SERVICE_USER="tripwire"
-        USE_WRAPPER=0 bash -c '
-          SUDOERS_FILE="/tmp/test-sudoers-debug"
-          SERVICE_USER="tripwire"
-          cat > "$SUDOERS_FILE" << "EOF"
-# Bananapeel service account sudo permissions - Debug mode (USE_WRAPPER=0)
-# Only allows specific tripwire operations needed for automation
-# WARNING: This mode bypasses wrapper validation. Use for debugging only.
+        SUDOERS_FILE="/tmp/test-sudoers-debug"
+        cat > "$SUDOERS_FILE" << 'EOF'
+        # Bananapeel service account sudo permissions - Debug mode (USE_WRAPPER=0)
+        # Only allows specific tripwire operations needed for automation
+        # WARNING: This mode bypasses wrapper validation. Use for debugging only.
 
-# Check operations (no dangerous flags like --init)
-Cmnd_Alias TRIPWIRE_CHECK = /usr/sbin/tripwire --check, \
-                            /usr/sbin/tripwire --check --quiet, \
-                            /usr/sbin/tripwire --check --quiet --email-report
+        # Check operations (no dangerous flags like --init)
+        Cmnd_Alias TRIPWIRE_CHECK = /usr/sbin/tripwire --check, \
+                                    /usr/sbin/tripwire --check --quiet, \
+                                    /usr/sbin/tripwire --check --quiet --email-report
 
-# Update operations (path-constrained to report directory only)
-Cmnd_Alias TRIPWIRE_UPDATE = /usr/sbin/tripwire --update --twrfile /var/lib/tripwire/report/*.twr, \
-                             /usr/sbin/tripwire --update --twrfile /var/lib/tripwire/report/*.twr --accept-all
+        # Update operations (path-constrained to report directory only)
+        Cmnd_Alias TRIPWIRE_UPDATE = /usr/sbin/tripwire --update --twrfile /var/lib/tripwire/report/*.twr, \
+                                     /usr/sbin/tripwire --update --twrfile /var/lib/tripwire/report/*.twr --accept-all
 
-# Print operations (path-constrained to report directory only)
-Cmnd_Alias TRIPWIRE_PRINT = /usr/sbin/twprint --print-report --twrfile /var/lib/tripwire/report/*.twr
+        # Print operations (path-constrained to report directory only)
+        Cmnd_Alias TRIPWIRE_PRINT = /usr/sbin/twprint --print-report --twrfile /var/lib/tripwire/report/*.twr
 
-# Environment reset for security
-Defaults!TRIPWIRE_CHECK,TRIPWIRE_UPDATE,TRIPWIRE_PRINT env_reset
-Defaults!TRIPWIRE_CHECK,TRIPWIRE_UPDATE,TRIPWIRE_PRINT !setenv
-Defaults!TRIPWIRE_CHECK,TRIPWIRE_UPDATE,TRIPWIRE_PRINT secure_path=/usr/sbin:/usr/bin:/bin
-tripwire ALL=(root) NOPASSWD: TRIPWIRE_CHECK, TRIPWIRE_UPDATE, TRIPWIRE_PRINT
-EOF
-          # Validate syntax
-          if ! visudo -c -f "$SUDOERS_FILE" 2>&1; then
-            echo "ERROR: Debug mode sudoers syntax validation failed"
-            exit 1
-          fi
-          echo "✓ Debug mode sudoers syntax valid"
-        '
+        # Environment reset for security
+        Defaults!TRIPWIRE_CHECK,TRIPWIRE_UPDATE,TRIPWIRE_PRINT env_reset
+        Defaults!TRIPWIRE_CHECK,TRIPWIRE_UPDATE,TRIPWIRE_PRINT !setenv
+        Defaults!TRIPWIRE_CHECK,TRIPWIRE_UPDATE,TRIPWIRE_PRINT secure_path=/usr/sbin:/usr/bin:/bin
+        tripwire ALL=(root) NOPASSWD: TRIPWIRE_CHECK, TRIPWIRE_UPDATE, TRIPWIRE_PRINT
+        EOF
+        # Validate syntax
+        if ! visudo -c -f "$SUDOERS_FILE" 2>&1; then
+          echo "ERROR: Debug mode sudoers syntax validation failed"
+          exit 1
+        fi
+        echo "✓ Debug mode sudoers syntax valid"
 
     - name: Check sudoers security patterns
       run: |

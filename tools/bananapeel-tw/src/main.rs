@@ -17,10 +17,10 @@ enum Commands {
     /// Initialize baseline (JSON Lines)
     Init {
         /// Root directory to scan
-        #[arg(long, default_value = "/")] 
+        #[arg(long, default_value = "/")]
         root: String,
         /// Output baseline file (JSONL)
-        #[arg(long, default_value = "baseline.jsonl")] 
+        #[arg(long, default_value = "baseline.jsonl")]
         out: String,
         /// Exclude patterns (repeatable)
         #[arg(long)]
@@ -28,11 +28,11 @@ enum Commands {
     },
     /// Check filesystem against baseline
     Check {
-        #[arg(long, default_value = "/")] 
+        #[arg(long, default_value = "/")]
         root: String,
         #[arg(long)]
         baseline: String,
-        #[arg(long, default_value = "report.json")] 
+        #[arg(long, default_value = "report.json")]
         out: String,
         #[arg(long)]
         exclude: Vec<String>,
@@ -59,4 +59,3 @@ fn main() -> Result<()> {
     }
     Ok( )
 }
-

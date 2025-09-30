@@ -604,7 +604,7 @@ case "$PLATFORM" in
 
     freebsd)
         # FreeBSD uses newsyslog
-        NEWSYSLOG_LINE="/var/log/bananapeel-update.log	tripwire:tripwire	664  7     *    @T00  JC"
+        NEWSYSLOG_LINE="/var/log/bananapeel-update.log tripwire:tripwire 664  7     *    @T00  JC"
 
         if [ "$DRY_RUN" = true ]; then
             echo "[DRY-RUN] Would add to /etc/newsyslog.conf:"

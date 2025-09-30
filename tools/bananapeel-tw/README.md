@@ -25,5 +25,4 @@ cargo build --release
 
 ## Notes
 - This crate is not yet wired into the system wrapper; it is a standalone prototype.
-- JSON schemas will be documented in `.claude/future/090-RFC-bananapeel-tw.md`.
-
+- JSON schemas will be documented in the project documentation.
